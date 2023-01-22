@@ -1,6 +1,5 @@
 import React, { useEffect, useReducer } from 'react';
 
-export const None: BaseCommand = { type: 'none' };
 export type BaseCommand = { type: string };
 
 const kCommand = Symbol('kCommand');

@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useModelAndCommand } from './useModelAndCommand';
 
 interface Person {
     id: number;
@@ -13,9 +13,9 @@ type Command = {
     id: number;
 };
 
+const None: Command = { type: 'none' };
+
 type Model = {
-    command: Command;
-} & ({
     type: 'loaded';
     people: Person[];
     fetchId: number;
@@ -26,20 +26,22 @@ type Model = {
 }  | {
     type: 'loadingLong';
     fetchId: number;
-});
+};
 
-function init(): Model {
-    return {
-        command: {
-            type: 'fetch',
-            id: 0
+function init(): [Model, Command] {
+    return [
+        {
+            type: 'loading',
+    
+            lastPeople: [],
+            fetchId: 0
         },
 
-        type: 'loading',
-
-        lastPeople: [],
-        fetchId: 0
-    };
+        {
+            type: 'fetch',
+            id: 0
+        }
+    ];
 }
 
 type Message = {
@@ -53,33 +55,38 @@ type Message = {
     type: 'refetchRequested';
 };
 
-function update(model: Model, message: Message): Model {
+function update(model: Model, message: Message): [Model, Command] {
     switch (message.type) {
         case 'gotResponse':
             if (model.fetchId !== message.fetchId) {
-                return model;
+                return [model, None];
             }
 
-            return {
-                command: { type: 'none' },
+            return [
+                {
+                    type: 'loaded',
+    
+                    people: message.people,
+                    fetchId: model.fetchId + 1
+                },
 
-                type: 'loaded',
-
-                people: message.people,
-                fetchId: model.fetchId + 1
-            };
+                None
+            ];
 
         case 'waitedLong': 
             if (model.fetchId !== message.fetchId) {
-                return model;
+                return [model, None]
             }
 
-            return {
-                command: { type: 'none' },
+            return [
+                {
+                    type: 'loadingLong',
+                    fetchId: model.fetchId
+                },
 
-                type: 'loadingLong',
-                fetchId: model.fetchId
-            };
+                None
+            ];
+            
 
         case 'refetchRequested': {
             const lastPeople = model.type === 'loaded'
@@ -88,17 +95,19 @@ function update(model: Model, message: Message): Model {
                     ? model.lastPeople
                     : [];
 
-            return {
-                command: {
-                    type: 'fetch',
-                    id: model.fetchId,
+            return [
+                {
+                    type: 'loading',
+    
+                    lastPeople,
+                    fetchId: model.fetchId
                 },
 
-                type: 'loading',
-
-                lastPeople,
-                fetchId: model.fetchId
-            };
+                {
+                    type: 'fetch',
+                    id: model.fetchId,
+                }
+            ];
         }
     }
 }
@@ -161,11 +170,11 @@ function view(model: Model, message: (m: Message) => void): JSX.Element {
 }
 
 function App() {
-    const [model, message] = useReducer(update, init());
-
-    useEffect(() => {
-        execute(model.command, message);
-    }, [model.command]);
+    const [model, message] = useModelAndCommand(
+        update,
+        execute,
+        init()
+    );
 
     return view(model, message);
 }
