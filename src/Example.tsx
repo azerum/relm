@@ -1,4 +1,4 @@
-import { useModelAndCommand } from './useModelAndCommand';
+import { useElm } from './useElm';
 
 interface Person {
     id: number;
@@ -19,13 +19,16 @@ type Model = {
     type: 'loaded';
     people: Person[];
     fetchId: number;
+    time: number | null;
 } | {
     type: 'loading';
     lastPeople: Person[];
     fetchId: number;
-}  | {
+    time: number | null;
+} | {
     type: 'loadingLong';
     fetchId: number;
+    time: number | null;
 };
 
 function init(): [Model, Command] {
@@ -34,7 +37,9 @@ function init(): [Model, Command] {
             type: 'loading',
     
             lastPeople: [],
-            fetchId: 0
+            fetchId: 0,
+
+            time: null
         },
 
         {
@@ -53,7 +58,10 @@ type Message = {
     fetchId: number;
 } | {
     type: 'refetchRequested';
-};
+} | {
+    type: 'tick';
+    time: number;
+}
 
 function update(model: Model, message: Message): [Model, Command] {
     switch (message.type) {
@@ -67,7 +75,9 @@ function update(model: Model, message: Message): [Model, Command] {
                     type: 'loaded',
     
                     people: message.people,
-                    fetchId: model.fetchId + 1
+                    fetchId: model.fetchId + 1,
+
+                    time: model.time
                 },
 
                 None
@@ -81,7 +91,9 @@ function update(model: Model, message: Message): [Model, Command] {
             return [
                 {
                     type: 'loadingLong',
-                    fetchId: model.fetchId
+                    fetchId: model.fetchId,
+
+                    time: model.time
                 },
 
                 None
@@ -100,7 +112,9 @@ function update(model: Model, message: Message): [Model, Command] {
                     type: 'loading',
     
                     lastPeople,
-                    fetchId: model.fetchId
+                    fetchId: model.fetchId,
+
+                    time: model.time
                 },
 
                 {
@@ -109,6 +123,16 @@ function update(model: Model, message: Message): [Model, Command] {
                 }
             ];
         }
+
+        case 'tick': 
+            return [
+                {
+                    ...model,
+                    time: message.time
+                },
+
+                None
+            ];
     }
 }
 
@@ -140,6 +164,13 @@ async function execute(command: Command, message: (m: Message) => void) {
 function view(model: Model, message: (m: Message) => void): JSX.Element {
     return (
         <>
+            <p>
+            {model.time === null
+                ? 'Loading time...'
+                : new Date(model.time).toISOString()
+            }
+            </p>
+
             <button
                 onClick={() => message({ type: 'refetchRequested' })}
             >
@@ -169,14 +200,26 @@ function view(model: Model, message: (m: Message) => void): JSX.Element {
     );
 }
 
-function App() {
-    const [model, message] = useModelAndCommand(
+function subscribe(message: (m: Message) => void): () => void {
+    const interval = setInterval(() => {
+        message({
+            type: 'tick',
+            time: Date.now()
+        })
+    }, 1000);
+
+    return () => {
+        clearInterval(interval);
+    };
+}
+
+export default function Example() {
+    const [model, message] = useElm(
+        init(),
         update,
         execute,
-        init()
+        subscribe
     );
 
     return view(model, message);
 }
-
-export default App;

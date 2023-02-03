@@ -4,14 +4,15 @@ export type BaseCommand = { type: string };
 
 const kCommand = Symbol('kCommand');
 
-export function useModelAndCommand<
+export function useElm<
     Model, 
     Message,
     Command extends BaseCommand
 >(
+    initialState: [Model, Command],
     update: (model: Model, message: Message) => [Model, Command],
     execute: (command: Command, message: (m: Message) => void) => void,
-    initialState: [Model, Command]
+    subscribe?: (message: (m: Message) => void) => () => void
 ): [Model, React.Dispatch<Message>] {
     const [internal, message] = useReducer(
         (model: InternalModel<Model, Command>, message: Message) => {
@@ -21,9 +22,17 @@ export function useModelAndCommand<
         toInternal(initialState)
     );
 
+    /* eslint-disable react-hooks/exhaustive-deps */
     useEffect(() => {
-        execute( internal[kCommand], message);
+        execute(internal[kCommand], message);
     }, [internal[kCommand]]);
+    /* eslint-enable */
+
+    useEffect(() => {
+        if (subscribe) {
+            return subscribe(message);
+        }
+    });
 
     return [internal, message];
 }
